@@ -1,37 +1,37 @@
-node {
-    def app
+pipeline {
+    agent any
 
-    stage('Clone repository') {
-      
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
-        checkout scm
-    }
-    
+        stage('Build') {
+            steps {
+                sh 'pip install -r requirements.txt'
+            }
+        }
 
-    stage('Build image') {
-  
-       app = docker.build("manishaverma/deployrepo")
-    }
-    
+        stage('Test') {
+            steps {
+                sh 'python -m pytest'
+            }
+        }
 
-
-    stage('Test image') {
-  
-
-        app.inside {
-            sh 'echo "Tests passed"'
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'docker build -t myapp .'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD'
+                }
+                sh 'docker tag myapp myuser/myapp:latest'
+                sh 'docker push myuser/myapp:latest'
+            }
         }
     }
-
-    stage('Push image') {
-        
-        docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
-            app.push("${env.BUILD_NUMBER}")
-        }
-     }
-    stage('deploy'){
-        sh 'docker run -p 3000:5000 -e OPENAI_API_KEY="${OPENAI_API_KEY}" manishaverma/deployrepo:latest'
-    }
-
-
 }
